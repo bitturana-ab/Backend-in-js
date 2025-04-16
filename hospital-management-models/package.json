@@ -1,0 +1,14 @@
+{
+  "name": "hospital-management-models",
+  "version": "1.0.0",
+  "main": "doctor.models.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "ab",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "mongoose": "^8.13.2"
+  }
+}
