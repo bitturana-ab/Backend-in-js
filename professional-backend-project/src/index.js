@@ -5,12 +5,12 @@ import dotenv from "dotenv";
 // import { DB_NAME } from "./constants.js";
 import express from "express";
 import connectDB from "./db/index.js";
-
+import { app } from "./app.js";
 dotenv.config({
   path: "./.env",
 });
 
-const app = express();
+// const app = express();
 
 // async return apromise
 connectDB()
@@ -34,6 +34,7 @@ connectDB()
 app.get("/", (req, res) => {
   res.send("app is running");
 });
+
 // lets mongoDB connection code will be inside DB folder
 /*
 // execute soon and async for no error
