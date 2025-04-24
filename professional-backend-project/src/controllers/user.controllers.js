@@ -6,6 +6,25 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 
 // const fields = []; // Initialize fields as an empty array
 
+const generateAccessAndRefereshToken = async (userId) => {
+  try {
+    const user = await User.findById(userId);
+    const accessToken = user.generateAccessToken();
+    const refereshToken = user.generateRefereshToken();
+
+    // store in database for login without password as usual
+    user.refereshToken = refereshToken;
+    await user.save({ validateBeforeSave: true }); //save in db without validate
+
+    return { accessToken, refereshToken };
+  } catch (error) {
+    throw new ApiError(
+      500,
+      "Something went wront while generating referesh and access token"
+    );
+  }
+};
+
 const registerUser = asyncHandler(async (req, res) => {
   // res.status(200).json({
   //   message: "ok",
@@ -29,6 +48,7 @@ const registerUser = asyncHandler(async (req, res) => {
   // }
 
   const { fullName, email, username, password } = req.body;
+
   console.log("email: ", email);
   // if (fullName === "") {
   //   throw new ApiError(400, "fullname is required");
@@ -51,24 +71,35 @@ const registerUser = asyncHandler(async (req, res) => {
     throw new ApiError(409, "User with email or username already exists");
   }
 
-  // here are some problems == TypeError: fields.forEach is not a function
+  // here are some problems with formdata req == TypeError: fields.forEach is not a function with json req no problem
 
   // check for image
   const avatarLocalPath = req.files?.avatar[0]?.path;
-  const coverImageLocalPath = req.files?.coverImage[0]?.path;
+  // const coverImageLocalPath = req.files?.coverImage[0]?.path;
 
-  // if (!avatarLocalPath) {
-  //   throw new ApiError(400, "Avatar file is required");
-  // }
+  let coverImageLocalPath;
+  if (
+    req.files &&
+    Array.isArray(req.files.coverImage) &&
+    req.files.coverImage.length > 0
+  ) {
+    coverImageLocalPath = req.files.coverImage[0].path;
+  }
+
+  console.log(req.files);
+
+  if (!avatarLocalPath) {
+    throw new ApiError(400, "Avatar file is required");
+  }
 
   // // // upload on cloudinary
 
   const avatar = await uploadOnCloudinary(avatarLocalPath);
   const coverImage = await uploadOnCloudinary(avatarLocalPath);
 
-  // if (!avatar) {
-  //   throw new ApiError(400, "Avatar file is required");
-  // }
+  if (!avatar) {
+    throw new ApiError(400, "Avatar file is required");
+  }
 
   // create user object - create entry in db
   const user = await User.create({
@@ -93,4 +124,58 @@ const registerUser = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, createdUser, "User register successfully"));
 });
 
-export default registerUser;
+const loginUser = asyncHandler(async (req, res) => {
+  // req.body -> data
+  // username or email
+  // find the user
+  // password check
+  // access and refresh token
+  // send cookie
+
+  const { username, email, password } = req.body;
+  if (!username || !email) {
+    throw new ApiError(400, "username or password is required");
+  }
+
+  const user = await User.findOne({
+    $or: [{ username }, { email }],
+  });
+
+  if (!user) {
+    throw new ApiError(404, "User does not exist");
+  }
+  // password check for this user from its password
+  const isPasswordValid = await user.isPasswordCorrect(password);
+  if (!isPasswordValid) {
+    throw new ApiError(401, "Please enter correct password");
+  }
+
+  // call for tokens
+  const { accessToken, refereshToken } = await generateAccessAndRefereshToken(
+    user._id
+  );
+  // denie unwanted tpyes from user || optional work
+  const loggedInUser = await User.findById(user._id).select(
+    "-password -refereshToken"
+  );
+  // cookies modification false from frontend
+  const options = {
+    httpOnly: true,
+    secure: true,
+  };
+
+  // return response
+  return res
+    .status(200)
+    .cookie("accessToken", accessToken, options)
+    .cookie("refereshToken", refereshToken, options)
+    .json(
+      new ApiResponse(200, {
+        user: loggedInUser,
+        accessToken,
+        refereshToken,
+      })
+    );
+});
+
+export { registerUser, loginUser };
