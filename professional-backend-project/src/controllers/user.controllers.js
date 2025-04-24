@@ -170,12 +170,37 @@ const loginUser = asyncHandler(async (req, res) => {
     .cookie("accessToken", accessToken, options)
     .cookie("refereshToken", refereshToken, options)
     .json(
-      new ApiResponse(200, {
-        user: loggedInUser,
-        accessToken,
-        refereshToken,
-      })
+      new ApiResponse(
+        200,
+        {
+          user: loggedInUser,
+          accessToken,
+          refereshToken,
+        },
+        "User logged In successfully "
+      )
     );
 });
 
-export { registerUser, loginUser };
+const logoutUser = asyncHandler(async (req, res) => {
+  // use middleware to access tokens or id for logout user
+  await User.findByIdAndUpdate(
+    req.user._id,
+    {
+      $set: { refereshToken: undefined },
+    },
+    { new: true }
+  );
+
+  const options = {
+    httpOnly: true,
+    secure: true,
+  };
+
+  return res
+    .status(200)
+    .clearCookie("accessToken", options)
+    .clearCookie("refereshToken", options)
+    .json(200, {}, "user logged out");
+});
+export { registerUser, loginUser, logoutUser };
