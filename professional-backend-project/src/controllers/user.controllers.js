@@ -3,7 +3,7 @@ import { ApiError } from "../utils/ApiError.js";
 import { User } from "../models/user.models.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
-import { jwt } from "jsonwebtoken";
+import jwt from "jsonwebtoken";
 
 // const fields = []; // Initialize fields as an empty array
 
@@ -73,6 +73,7 @@ const registerUser = asyncHandler(async (req, res) => {
   }
 
   // here are some problems with formdata req == TypeError: fields.forEach is not a function with json req no problem
+  // problem solve inside user routes upload.fields([{},{}]),[] is missing
 
   // check for image
   const avatarLocalPath = req.files?.avatar[0]?.path;
@@ -105,7 +106,7 @@ const registerUser = asyncHandler(async (req, res) => {
   // create user object - create entry in db
   const user = await User.create({
     fullName,
-    avatar: avatar?.url || "",
+    avatar: avatar?.url,
     coverImage: coverImage?.url || "",
     email,
     username: username.toLowerCase(),
@@ -252,4 +253,67 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     throw new ApiError(401, error?.message || "Invalid refresh token");
   }
 });
-export { registerUser, loginUser, logoutUser, refreshAccessToken };
+
+const changeCurrentpassword = asyncHandler(async (req, res) => {
+  const { oldPassword, newPassword } = req.body;
+
+  // if u want to confirm  new password
+
+  // const { oldPassword, newPassword ,confPassword} = req.body;
+
+  // if (!(newPassword === confPassword)) {
+  //   throw new ApiError(400, "please confirm password");
+  // }
+
+  const user = await User.findById(req.user._id);
+  const isPasswordCorrect = await user.isPasswordCorrect(oldPassword);
+  if (!isPasswordCorrect) {
+    throw new ApiError(400, "Invalid old password");
+  }
+
+  user.password = newPassword;
+  await user.save({ validateBeforeSave: false });
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, {}, "Password changed successfully"));
+});
+
+const getCurrentUser = asyncHandler(async (req, res) => {
+  return res
+    .status(200)
+    .json(200, req.user, "Current user fetched successfully");
+});
+
+const updateUserDetails = asyncHandler(async (req, res) => {
+  const { fullName, email } = req.body;
+
+  if (!(fullName || email)) {
+    throw new ApiError(400, "All fields are required");
+  }
+  // user find and return wihtout password as res
+  const user = await User.findOneAndUpdate(
+    req.user?._id,
+    {
+      $set: {
+        fullName: fullName,
+        email,
+        // email:email
+      },
+    },
+    { new: true }
+  ).select("-password");
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, {}, "Account details updated succesfully"));
+});
+export {
+  registerUser,
+  loginUser,
+  logoutUser,
+  refreshAccessToken,
+  changeCurrentpassword,
+  getCurrentUser,
+  updateUserDetails,
+};
