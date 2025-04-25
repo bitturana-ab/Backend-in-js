@@ -3,6 +3,7 @@ import { ApiError } from "../utils/ApiError.js";
 import { User } from "../models/user.models.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
+import { jwt } from "jsonwebtoken";
 
 // const fields = []; // Initialize fields as an empty array
 
@@ -133,7 +134,7 @@ const loginUser = asyncHandler(async (req, res) => {
   // send cookie
 
   const { username, email, password } = req.body;
-  if (!username || !email) {
+  if (!(username || email)) {
     throw new ApiError(400, "username or password is required");
   }
 
@@ -203,4 +204,52 @@ const logoutUser = asyncHandler(async (req, res) => {
     .clearCookie("refereshToken", options)
     .json(200, {}, "user logged out");
 });
-export { registerUser, loginUser, logoutUser };
+
+const refreshAccessToken = asyncHandler(async (req, res) => {
+  // require token from user's frontend cookies
+  const incomeingRefreshToken =
+    req.cookies.refereshToken || req.body.refereshToken;
+
+  if (!incomeingRefreshToken) {
+    throw new ApiError(401, "Unauthorized request");
+  }
+
+  try {
+    // decode token from jwt
+    const decodedToken = jwt.verify(
+      incomeingRefreshToken,
+      process.env.REFRESH_TOKEN_SECRET
+    );
+
+    const user = User.findById(decodedToken?._id);
+    if (!user) {
+      throw new ApiError(401, "Invalid access token");
+    }
+
+    if (incomeingRefreshToken !== user?.refereshToken) {
+      throw new ApiError(401, "Refresh token is expired or used");
+    }
+
+    const options = {
+      httpOnly: true,
+      secure: true,
+    };
+
+    const { accessToken, newRefereshToken } =
+      await generateAccessAndRefereshToken(user._id);
+    return res
+      .status(200)
+      .cookie("accessToken", accessToken, options)
+      .cookie("refereshToken", newRefereshToken, options)
+      .json(
+        new ApiResponse(
+          200,
+          { accessToken, refereshToken: newRefereshToken },
+          "Access token refreshed"
+        )
+      );
+  } catch (error) {
+    throw new ApiError(401, error?.message || "Invalid refresh token");
+  }
+});
+export { registerUser, loginUser, logoutUser, refreshAccessToken };

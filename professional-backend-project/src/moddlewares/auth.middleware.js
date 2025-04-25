@@ -5,7 +5,7 @@ import jwt from "jsonwebtoken";
 //( res = _ )in callback
 export const verifyJWT = asyncHandler(async (req, _, next) => {
   try {
-    // header auth for access token and ignore Bearer mobile app
+    // header auth for access token and ignore Bearer for mobile app
     const token =
       req.cookies?.accessToken ||
       req.header("Authorization")?.replace("Bearer ", "");
