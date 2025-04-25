@@ -109,7 +109,7 @@ const registerUser = asyncHandler(async (req, res) => {
     avatar: avatar?.url,
     coverImage: coverImage?.url || "",
     email,
-    username: username.toLowerCase(),
+    username: username,
     password,
   });
 
