@@ -279,6 +279,7 @@ const changeCurrentpassword = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, {}, "Password changed successfully"));
 });
 
+// use authmiddleware in routing then return user details as req
 const getCurrentUser = asyncHandler(async (req, res) => {
   return res
     .status(200)
@@ -308,6 +309,132 @@ const updateUserDetails = asyncHandler(async (req, res) => {
     .status(200)
     .json(new ApiResponse(200, {}, "Account details updated succesfully"));
 });
+
+// here we use two middleware while creating routing
+// 1. auth(JWT) 2.multer(upload)
+const updateCoverImage = asyncHandler(async (req, res) => {
+  const coverImageLocalPath = req.file?.path;
+
+  if (!coverImageLocalPath) {
+    throw new ApiError(400, "coverImage file is missing");
+  }
+  const coverImage = uploadOnCloudinary(coverImageLocalPath);
+  // avatar is object
+  if (!coverImage.url) {
+    throw new ApiError(400, "Error uploading coverImage on cloudinary");
+  }
+
+  const user = await User.findOneAndUpdate(
+    req.user?._id,
+    {
+      $set: {
+        coverImage: coverImage.url,
+      },
+    },
+    { new: true }
+  ).select("-password");
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, req.user, "Cover image updated successfully"));
+});
+const updateAvatarImage = asyncHandler(async (req, res) => {
+  const avatarLocalPath = req.file?.path;
+
+  if (!avatarLocalPath) {
+    throw new ApiError(400, "Avatar file is missing");
+  }
+  const avatar = uploadOnCloudinary(avatarLocalPath);
+  // avatar is object
+  if (!avatar.url) {
+    throw new ApiError(400, "Error uploading avatar on cloudinary");
+  }
+
+  const user = await User.findOneAndUpdate(
+    req.user?._id,
+    {
+      $set: {
+        avatar: avatar.url,
+      },
+    },
+    { new: true }
+  ).select("-password");
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, req.user, "Avatar image updated successfully"));
+});
+
+const getUserChannelProfile = asyncHandler(async (req, res) => {
+  const { username } = req.params; //from url
+  if (!username?.trim()) {
+    throw new ApiError(400, "Username is missing");
+  }
+
+  // aggregate pipeline by mongodb for filter/match
+  // User.aggregate([{}, {}]);
+  const channel = await User.aggregate([
+    {
+      $match: {
+        username: username,
+      },
+    },
+    {
+      $lookup: {
+        from: "subscriptions", //mogodb name of Subsription
+        localField: "_id", //select using id
+        foreignField: "channel", //what we want
+        as: "subscribers", //new name
+      },
+    },
+    {
+      $lookup: {
+        from: "subscriptions", //mogodb name of Subsription
+        localField: "_id", //select using id
+        foreignField: "subscriber", //whom we subscribe
+        as: "subscribedTo", //new name
+      },
+    },
+    {
+      $addFields: {
+        subscribersCount: {
+          $size: "$subscribers",
+        },
+        channelSubscribedToCount: {
+          $size: "$subscribedTo",
+        },
+        isSubscribed: {
+          $cond: {
+            if: { $in: [req.user?._id, "$subscribers.subscriber"] },
+            then: true,
+            else: false,
+          },
+        },
+      },
+    },
+
+    {
+      $project: {
+        fullName: 1,
+        username: 1,
+        subscribersCount: 1,
+        channelSubscribedToCount: 1,
+        isSubscribed: 1,
+        avatar: 1,
+        coverImage: 1,
+        email: 1,
+      },
+    },
+  ]);
+
+  if (!channel?.length) {
+    throw new ApiError(404, "channel does not exists");
+  }
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, channel[0], "channel fetched successfully"));
+});
 export {
   registerUser,
   loginUser,
@@ -316,4 +443,7 @@ export {
   changeCurrentpassword,
   getCurrentUser,
   updateUserDetails,
+  updateAvatarImage,
+  updateCoverImage,
+  getUserChannelProfile,
 };
